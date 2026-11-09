@@ -1,0 +1,56 @@
+﻿@page "/"
+
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+
+<PageTitle>Virtualize reproduction</PageTitle>
+<h1>Virtualize reproduction</h1>
+<p>Framework: @typeof(Virtualize<int>).Assembly.GetName().Version; fixed rows: @Fixed; overscan: @(Overscan ?? 15).</p>
+<label for="queue-anchor">Follow new entries</label>
+<select id="queue-anchor" @bind="anchorMode">
+    <option value="0">Neither edge</option>
+    <option value="1">Start of queue</option>
+    <option value="2">End of queue</option>
+</select>
+<button @onclick="Append" disabled="@InteractionUnavailable">Add at end</button>
+<button @onclick="GoToEndAsync" disabled="@InteractionUnavailable">Go to end</button>
+<p>@items.Count items</p>
+<div class="queue-viewport" tabindex="0">
+    <Virtualize @ref="virtualizer" Items="items" Context="item" ItemSize="120" OverscanCount="@(Overscan ?? 15)" AnchorMode="@((VirtualizeAnchorMode)anchorMode)">
+        <article @key="item" class="queue-row @(!Fixed && item % 5 == 0 ? "expanded" : "")" data-queue-id="@item">
+            Item @item
+            @if (!Fixed && item % 5 == 0)
+            {
+                <p>Additional details for this item.</p>
+            }
+        </article>
+    </Virtualize>
+</div>
+<p role="status">@status</p>
+
+@code {
+    [SupplyParameterFromQuery] public bool Fixed { get; set; }
+    [SupplyParameterFromQuery] public int? Overscan { get; set; }
+    private List<int> items = [.. Enumerable.Range(1, 10_000)];
+    private Virtualize<int> virtualizer = null!;
+    private int anchorMode = 1;
+    private bool jumping;
+    private string status = "Ready";
+    private bool InteractionUnavailable => !RendererInfo.IsInteractive || jumping;
+
+    private void Append() => items = [.. items, items.Count + 1];
+
+    private async Task GoToEndAsync()
+    {
+        jumping = true;
+        try
+        {
+            await virtualizer.ScrollToItemAsync(items.Count - 1);
+            status = $"Selected item {items.Count}";
+        }
+        finally
+        {
+            jumping = false;
+        }
+    }
+}
